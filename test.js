@@ -6,7 +6,7 @@ import {promises as fs} from 'fs';
 
 const __dirname = path.dirname(process.argv[1]);
 
-const destination = new parksapi.destinations.LotteWorld();
+const destination = new parksapi.destinations.SeaWorldGoldCoast();
 
 const logSuccess = (...msg) => {
   // print green tick
@@ -295,6 +295,11 @@ async function TestDestination() {
     TestLiveData(ent, allEntities);
   }
   logSuccess(`${liveData.length} live data tested`);
+
+  const showLiveData = process.env.SHOW_LIVEDATA === 'true' || process.env.SHOW_LIVEDATA === '1';
+  if (showLiveData) {
+    console.log(JSON.stringify(liveData, null, 2));
+  }
 
   // write all live data to file
   const liveDataFile = path.join(__dirname, 'testout_LiveData.json');
