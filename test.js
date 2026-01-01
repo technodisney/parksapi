@@ -6,7 +6,7 @@ import {promises as fs} from 'fs';
 
 const __dirname = path.dirname(process.argv[1]);
 
-const destination = new parksapi.destinations.SeaWorldGoldCoast();
+const destination = new parksapi.destinations.WarnerBrosMovieWorld();
 
 const logSuccess = (...msg) => {
   // print green tick
@@ -269,17 +269,22 @@ async function TestDestination() {
   const entityDataFile = path.join(__dirname, 'testout_Entities.json');
   await fs.writeFile(entityDataFile, JSON.stringify(allEntities, null, 4));
 
-  const schedule = await destination.getEntitySchedules();
-  // get parks
-  const parks = await destination.getParkEntities();
-  for (const park of parks) {
-    TestSchedule(schedule, park._id);
-  }
-  logSuccess(`${parks.length} park schedules tested`);
+  const skipSchedules = process.env.SKIP_SCHEDULES === 'true' || process.env.SKIP_SCHEDULES === '1';
+  if (skipSchedules) {
+    logSuccess('Skipping schedules (SKIP_SCHEDULES enabled)');
+  } else {
+    const schedule = await destination.getEntitySchedules();
+    // get parks
+    const parks = await destination.getParkEntities();
+    for (const park of parks) {
+      TestSchedule(schedule, park._id);
+    }
+    logSuccess(`${parks.length} park schedules tested`);
 
-  // write all schedule data to file
-  const scheduleDataFile = path.join(__dirname, 'testout_Schedules.json');
-  await fs.writeFile(scheduleDataFile, JSON.stringify(schedule, null, 4));
+    // write all schedule data to file
+    const scheduleDataFile = path.join(__dirname, 'testout_Schedules.json');
+    await fs.writeFile(scheduleDataFile, JSON.stringify(schedule, null, 4));
+  }
 
   const liveData = await destination.getEntityLiveData();
   // test for duplicate live data entries
