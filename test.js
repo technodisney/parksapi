@@ -6,7 +6,14 @@ import {promises as fs} from 'fs';
 
 const __dirname = path.dirname(process.argv[1]);
 
-const destination = new parksapi.destinations.LotteWorld();
+const destName = process.argv[2] || 'EuropaPark';
+if (!parksapi.destinations[destName]) {
+  console.error(`Unknown destination: ${destName}`);
+  console.error(`Available: ${Object.keys(parksapi.destinations).join(', ')}`);
+  process.exit(1);
+}
+console.log(`Testing destination: ${destName}`);
+const destination = new parksapi.destinations[destName]();
 
 const logSuccess = (...msg) => {
   // print green tick
@@ -117,7 +124,7 @@ function TestEntity(ent) {
   if (entityType != "DESTINATION" && entityType != "PARK") {
     if (ent._parentId) {
       const parent = parkEntities.find((x) => x._id === ent._parentId);
-      if (parent.entityType === 'PARK') {
+      if (parent && parent.entityType === 'PARK') {
         if (!ent._parkId) {
           throw new EntityError('Entity has a park as their parent, but not assigned a _parkId', ent);
         }
@@ -162,7 +169,9 @@ function TestSchedule(scheduleData, entityId) {
   }
 
   if (entSchedule.schedule.length === 0) {
-    throw new EntityError(`Schedule ${entityId} is empty`, scheduleData);
+    // seasonal parks (e.g. Traumatica) may have no schedule outside their season
+    console.warn(`[\x1b[33m!\x1b[0m] Schedule ${entityId} is empty`);
+    return;
   }
 
   for (const schedule of entSchedule.schedule) {
@@ -260,6 +269,46 @@ async function TestDestination() {
     console.log(duplicateEntitySlugs);
   } else {
     logSuccess(`No entity slugs are duplicated`);
+  }
+
+  // Check for entities with locations more than 10 miles from their destination
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  let locationErrors = 0;
+  for (const ent of allEntities) {
+    if (ent.entityType === 'DESTINATION') continue;
+
+    // Find the destination for this entity
+    const dest = destinations.find(d => d._id === ent._destinationId);
+    if (!dest) continue;
+
+    if (ent.location && dest.location) {
+      const distance = calculateDistance(
+        ent.location.latitude,
+        ent.location.longitude,
+        dest.location.latitude,
+        dest.location.longitude
+      );
+
+      if (distance > 10) {
+        logError(`Entity ${ent._id} (${ent.name}) is ${distance.toFixed(2)} miles from destination ${dest._id} (${dest.name})`);
+        locationErrors++;
+      }
+    }
+  }
+  if (locationErrors === 0) {
+    logSuccess('All entities are within 10 miles of their destination');
+  } else {
+    logError(`${locationErrors} entities are more than 10 miles from their destination`);
   }
 
   // sort entities by _id
